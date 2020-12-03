@@ -3,13 +3,14 @@ package aws
 import (
 	"bytes"
 	"fmt"
+	"log"
+	"regexp"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/wafv2"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/terraform-providers/terraform-provider-aws/aws/internal/hashcode"
-	"log"
-	"regexp"
 )
 
 func resourceAwsWafv2WebACLLoggingConfiguration() *schema.Resource {
@@ -41,33 +42,10 @@ func resourceAwsWafv2WebACLLoggingConfiguration() *schema.Resource {
 				// to be correctly interpreted, this argument must be of type List,
 				// otherwise, at apply-time a field configured as an empty block
 				// (e.g. body {}) will result in a nil redacted_fields attribute
-				Type:     schema.TypeList,
-				Optional: true,
-				DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
-					o, n := d.GetChange("redacted_fields")
-					oList := o.([]interface{})
-					nList := n.([]interface{})
-					if len(oList) == 0 && len(nList) == 0 {
-						return true
-					}
-					if len(oList) == 0 && len(nList) != 0 {
-						if nList[0] == nil {
-							return true
-						}
-						return false
-					}
-					if len(oList) != 0 && len(nList) == 0 {
-						if oList[0] == nil {
-							return true
-						}
-						return false
-					}
-
-					oldSet := schema.NewSet(redactedFieldsHash, oList)
-					newSet := schema.NewSet(redactedFieldsHash, nList)
-					return oldSet.Equal(newSet)
-				},
-				MaxItems: 100,
+				Type:             schema.TypeList,
+				Optional:         true,
+				DiffSuppressFunc: suppressRedactedFieldsDiff,
+				MaxItems:         100,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						// TODO: remove attributes marked as Deprecated
@@ -308,4 +286,28 @@ func redactedFieldsHash(v interface{}) int {
 	}
 
 	return hashcode.String(buf.String())
+}
+
+func suppressRedactedFieldsDiff(k, old, new string, d *schema.ResourceData) bool {
+	o, n := d.GetChange("redacted_fields")
+	oList := o.([]interface{})
+	nList := n.([]interface{})
+
+	if len(oList) == 0 && len(nList) == 0 {
+		return true
+	}
+
+	if len(oList) == 0 && len(nList) != 0 {
+		// account for empty block
+		return nList[0] == nil
+	}
+
+	if len(oList) != 0 && len(nList) == 0 {
+		// account for empty block
+		return oList[0] == nil
+	}
+
+	oldSet := schema.NewSet(redactedFieldsHash, oList)
+	newSet := schema.NewSet(redactedFieldsHash, nList)
+	return oldSet.Equal(newSet)
 }

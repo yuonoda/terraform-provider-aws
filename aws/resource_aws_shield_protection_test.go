@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/cloudfront"
 	"github.com/aws/aws-sdk-go/service/shield"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -17,7 +18,11 @@ func TestAccAWSShieldProtection_GlobalAccelerator(t *testing.T) {
 	rName := acctest.RandStringFromCharSet(10, acctest.CharSetAlphaNum)
 
 	resource.ParallelTest(t, resource.TestCase{
-		PreCheck:     func() { testAccPreCheck(t); testAccPreCheckAWSShield(t) },
+		PreCheck: func() {
+			testAccPreCheck(t)
+			testAccPartitionHasServicePreCheck(shield.EndpointsID, t)
+			testAccPreCheckAWSShield(t)
+		},
 		Providers:    testAccProviders,
 		CheckDestroy: testAccCheckAWSShieldProtectionDestroy,
 		Steps: []resource.TestStep{
@@ -41,7 +46,11 @@ func TestAccAWSShieldProtection_ElasticIPAddress(t *testing.T) {
 	rName := acctest.RandStringFromCharSet(10, acctest.CharSetAlphaNum)
 
 	resource.ParallelTest(t, resource.TestCase{
-		PreCheck:     func() { testAccPreCheck(t); testAccPreCheckAWSShield(t) },
+		PreCheck: func() {
+			testAccPreCheck(t)
+			testAccPartitionHasServicePreCheck(shield.EndpointsID, t)
+			testAccPreCheckAWSShield(t)
+		},
 		Providers:    testAccProviders,
 		CheckDestroy: testAccCheckAWSShieldProtectionDestroy,
 		Steps: []resource.TestStep{
@@ -65,7 +74,11 @@ func TestAccAWSShieldProtection_Alb(t *testing.T) {
 	rName := acctest.RandStringFromCharSet(10, acctest.CharSetAlphaNum)
 
 	resource.ParallelTest(t, resource.TestCase{
-		PreCheck:     func() { testAccPreCheck(t); testAccPreCheckAWSShield(t) },
+		PreCheck: func() {
+			testAccPreCheck(t)
+			testAccPartitionHasServicePreCheck(shield.EndpointsID, t)
+			testAccPreCheckAWSShield(t)
+		},
 		Providers:    testAccProviders,
 		CheckDestroy: testAccCheckAWSShieldProtectionDestroy,
 		Steps: []resource.TestStep{
@@ -89,7 +102,11 @@ func TestAccAWSShieldProtection_Elb(t *testing.T) {
 	rName := acctest.RandStringFromCharSet(10, acctest.CharSetAlphaNum)
 
 	resource.ParallelTest(t, resource.TestCase{
-		PreCheck:     func() { testAccPreCheck(t); testAccPreCheckAWSShield(t) },
+		PreCheck: func() {
+			testAccPreCheck(t)
+			testAccPartitionHasServicePreCheck(shield.EndpointsID, t)
+			testAccPreCheckAWSShield(t)
+		},
 		Providers:    testAccProviders,
 		CheckDestroy: testAccCheckAWSShieldProtectionDestroy,
 		Steps: []resource.TestStep{
@@ -113,7 +130,12 @@ func TestAccAWSShieldProtection_Cloudfront(t *testing.T) {
 	rName := acctest.RandStringFromCharSet(10, acctest.CharSetAlphaNum)
 
 	resource.ParallelTest(t, resource.TestCase{
-		PreCheck:     func() { testAccPreCheck(t); testAccPreCheckAWSShield(t) },
+		PreCheck: func() {
+			testAccPreCheck(t)
+			testAccPartitionHasServicePreCheck(shield.EndpointsID, t)
+			testAccPartitionHasServicePreCheck(cloudfront.EndpointsID, t)
+			testAccPreCheckAWSShield(t)
+		},
 		Providers:    testAccProviders,
 		CheckDestroy: testAccCheckAWSShieldProtectionDestroy,
 		Steps: []resource.TestStep{
@@ -137,7 +159,12 @@ func TestAccAWSShieldProtection_Route53(t *testing.T) {
 	rName := acctest.RandStringFromCharSet(10, acctest.CharSetAlphaNum)
 
 	resource.ParallelTest(t, resource.TestCase{
-		PreCheck:     func() { testAccPreCheck(t); testAccPreCheckAWSShield(t) },
+		PreCheck: func() {
+			testAccPreCheck(t)
+			testAccPartitionHasServicePreCheck(shield.EndpointsID, t)
+			testAccPreCheckAWSShield(t)
+		},
+		ErrorCheck:   testAccErrorCheckSkipRoute53(t),
 		Providers:    testAccProviders,
 		CheckDestroy: testAccCheckAWSShieldProtectionDestroy,
 		Steps: []resource.TestStep{
@@ -251,9 +278,11 @@ resource "aws_route53_zone" "acctest" {
   }
 }
 
+data "aws_partition" "current" {}
+
 resource "aws_shield_protection" "acctest" {
   name         = var.name
-  resource_arn = "arn:aws:route53:::hostedzone/${aws_route53_zone.acctest.zone_id}"
+  resource_arn = "arn:${data.aws_partition.current.partition}:route53:::hostedzone/${aws_route53_zone.acctest.zone_id}"
 }
 `, rName)
 }
@@ -303,8 +332,7 @@ resource "aws_subnet" "acctest" {
 resource "aws_elb" "acctest" {
   name = var.name
 
-  #availability_zones = ["us-east-1a", "us-east-1b", "us-east-1c"]
-  subnets  = [aws_subnet.acctest[0].id, aws_subnet.acctest[1].id]
+  subnets  = aws_subnet.acctest[*].id
   internal = true
 
   listener {
@@ -353,7 +381,7 @@ resource "aws_lb" "acctest" {
   name            = var.name
   internal        = true
   security_groups = [aws_security_group.acctest.id]
-  subnets         = [aws_subnet.acctest[0].id, aws_subnet.acctest[1].id]
+  subnets         = aws_subnet.acctest[*].id
 
   idle_timeout               = 30
   enable_deletion_protection = false
@@ -505,8 +533,12 @@ data "aws_availability_zones" "available" {
     values = ["opt-in-not-required"]
   }
 }
+
 data "aws_region" "current" {}
+
 data "aws_caller_identity" "current" {}
+
+data "aws_partition" "current" {}
 
 resource "aws_eip" "acctest" {
   vpc = true
@@ -519,7 +551,7 @@ resource "aws_eip" "acctest" {
 
 resource "aws_shield_protection" "acctest" {
   name         = var.name
-  resource_arn = "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:eip-allocation/${aws_eip.acctest.id}"
+  resource_arn = "arn:${data.aws_partition.current.partition}:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:eip-allocation/${aws_eip.acctest.id}"
 }
 `, rName)
 }
@@ -536,7 +568,6 @@ resource "aws_shield_protection" "acctest" {
 }
 
 resource "aws_globalaccelerator_accelerator" "acctest" {
-  # provider        = "aws.us-west-2"
   name            = var.name
   ip_address_type = "IPV4"
   enabled         = true

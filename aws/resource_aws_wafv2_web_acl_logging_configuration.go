@@ -94,8 +94,7 @@ func resourceAwsWafv2WebACLLoggingConfiguration() *schema.Resource {
 						"uri_path": wafv2EmptySchema(),
 					},
 				},
-				Description:      "Parts of the request to exclude from logs",
-				DiffSuppressFunc: suppressEquivalentRedactedFields,
+				Description: "Parts of the request to exclude from logs",
 			},
 			"resource_arn": {
 				Type:         schema.TypeString,
@@ -108,62 +107,6 @@ func resourceAwsWafv2WebACLLoggingConfiguration() *schema.Resource {
 	}
 }
 
-// suppressEquivalentRedactedFields is required to
-// handle shifts in List ordering returned from the API
-func suppressEquivalentRedactedFields(k, old, new string, d *schema.ResourceData) bool {
-	o, n := d.GetChange("redacted_fields")
-	if o != nil && n != nil {
-		oldFields := o.([]interface{})
-		newFields := n.([]interface{})
-		if len(oldFields) != len(newFields) {
-			// account for case where the empty block {} is used as input
-			return !d.IsNewResource() && len(oldFields) == 0 && len(newFields) == 1 && newFields[0] == nil
-		}
-
-		for _, oldField := range oldFields {
-			om := oldField.(map[string]interface{})
-			found := false
-			for _, newField := range newFields {
-				nm := newField.(map[string]interface{})
-				if len(om) != len(nm) {
-					continue
-				}
-				for k, newVal := range nm {
-					if oldVal, ok := om[k]; ok {
-						if k == "method" || k == "query_string" || k == "uri_path" {
-							if len(oldVal.([]interface{})) == len(newVal.([]interface{})) {
-								found = true
-								break
-							}
-						} else if k == "single_header" {
-							oldHeader := oldVal.([]interface{})
-							newHeader := newVal.([]interface{})
-							if len(oldHeader) > 0 && oldHeader[0] != nil {
-								if len(newHeader) > 0 && newHeader[0] != nil {
-									oldName := oldVal.([]interface{})[0].(map[string]interface{})["name"].(string)
-									newName := newVal.([]interface{})[0].(map[string]interface{})["name"].(string)
-									if oldName == newName {
-										found = true
-										break
-									}
-								}
-							}
-						}
-					}
-				}
-				if found {
-					break
-				}
-			}
-			if !found {
-				return false
-			}
-		}
-		return true
-	}
-	return false
-}
-
 func resourceAwsWafv2WebACLLoggingConfigurationPut(d *schema.ResourceData, meta interface{}) error {
 	conn := meta.(*AWSClient).wafv2conn
 
@@ -174,11 +117,7 @@ func resourceAwsWafv2WebACLLoggingConfigurationPut(d *schema.ResourceData, meta 
 	}
 
 	if v, ok := d.GetOk("redacted_fields"); ok && len(v.([]interface{})) > 0 && v.([]interface{})[0] != nil {
-		fields, err := expandWafv2RedactedFields(v.([]interface{}))
-		if err != nil {
-			return err
-		}
-		config.RedactedFields = fields
+		config.RedactedFields = expandWafv2RedactedFields(v.([]interface{}))
 	} else {
 		config.RedactedFields = []*wafv2.FieldToMatch{}
 	}
@@ -243,19 +182,15 @@ func resourceAwsWafv2WebACLLoggingConfigurationDelete(d *schema.ResourceData, me
 	return nil
 }
 
-func expandWafv2RedactedFields(fields []interface{}) ([]*wafv2.FieldToMatch, error) {
+func expandWafv2RedactedFields(fields []interface{}) []*wafv2.FieldToMatch {
 	redactedFields := make([]*wafv2.FieldToMatch, 0, len(fields))
 	for _, field := range fields {
-		f, err := expandWafv2RedactedField(field)
-		if err != nil {
-			return nil, err
-		}
-		redactedFields = append(redactedFields, f)
+		redactedFields = append(redactedFields, expandWafv2RedactedField(field))
 	}
-	return redactedFields, nil
+	return redactedFields
 }
 
-func expandWafv2RedactedField(field interface{}) (*wafv2.FieldToMatch, error) {
+func expandWafv2RedactedField(field interface{}) *wafv2.FieldToMatch {
 	m := field.(map[string]interface{})
 
 	f := &wafv2.FieldToMatch{}
@@ -264,17 +199,6 @@ func expandWafv2RedactedField(field interface{}) (*wafv2.FieldToMatch, error) {
 	// the WAFv2 API does not. In addition, in the context of Logging Configuration requests,
 	// the WAFv2 API only supports the following redacted fields.
 	// Reference: https://github.com/terraform-providers/terraform-provider-aws/issues/14244
-	nFields := 0
-	for _, v := range m {
-		if len(v.([]interface{})) > 0 {
-			nFields++
-		}
-		if nFields > 1 {
-			return nil, fmt.Errorf(`error expanding redacted_field: only one of "method", "query_string",
-							"single_header", or "uri_path" is valid`)
-		}
-	}
-
 	if v, ok := m["method"]; ok && len(v.([]interface{})) > 0 {
 		f.Method = &wafv2.Method{}
 	} else if v, ok := m["query_string"]; ok && len(v.([]interface{})) > 0 {
@@ -285,7 +209,7 @@ func expandWafv2RedactedField(field interface{}) (*wafv2.FieldToMatch, error) {
 		f.UriPath = &wafv2.UriPath{}
 	}
 
-	return f, nil
+	return f
 }
 
 func flattenWafv2RedactedFields(fields []*wafv2.FieldToMatch) []map[string]interface{} {

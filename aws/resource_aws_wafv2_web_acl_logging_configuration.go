@@ -1,14 +1,15 @@
 package aws
 
 import (
+	"bytes"
 	"fmt"
-	"log"
-	"regexp"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/wafv2"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
+	"github.com/terraform-providers/terraform-provider-aws/aws/internal/hashcode"
+	"log"
+	"regexp"
 )
 
 func resourceAwsWafv2WebACLLoggingConfiguration() *schema.Resource {
@@ -42,6 +43,30 @@ func resourceAwsWafv2WebACLLoggingConfiguration() *schema.Resource {
 				// (e.g. body {}) will result in a nil redacted_fields attribute
 				Type:     schema.TypeList,
 				Optional: true,
+				DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
+					o, n := d.GetChange("redacted_fields")
+					oList := o.([]interface{})
+					nList := n.([]interface{})
+					if len(oList) == 0 && len(nList) == 0 {
+						return true
+					}
+					if len(oList) == 0 && len(nList) != 0 {
+						if nList[0] == nil {
+							return true
+						}
+						return false
+					}
+					if len(oList) != 0 && len(nList) == 0 {
+						if oList[0] == nil {
+							return true
+						}
+						return false
+					}
+
+					oldSet := schema.NewSet(redactedFieldsHash, oList)
+					newSet := schema.NewSet(redactedFieldsHash, nList)
+					return oldSet.Equal(newSet)
+				},
 				MaxItems: 100,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
@@ -201,19 +226,25 @@ func expandWafv2RedactedField(field interface{}) *wafv2.FieldToMatch {
 	// Reference: https://github.com/terraform-providers/terraform-provider-aws/issues/14244
 	if v, ok := m["method"]; ok && len(v.([]interface{})) > 0 {
 		f.Method = &wafv2.Method{}
-	} else if v, ok := m["query_string"]; ok && len(v.([]interface{})) > 0 {
+	}
+
+	if v, ok := m["query_string"]; ok && len(v.([]interface{})) > 0 {
 		f.QueryString = &wafv2.QueryString{}
-	} else if v, ok := m["single_header"]; ok && len(v.([]interface{})) > 0 {
+	}
+
+	if v, ok := m["single_header"]; ok && len(v.([]interface{})) > 0 {
 		f.SingleHeader = expandWafv2SingleHeader(m["single_header"].([]interface{}))
-	} else if v, ok := m["uri_path"]; ok && len(v.([]interface{})) > 0 {
+	}
+
+	if v, ok := m["uri_path"]; ok && len(v.([]interface{})) > 0 {
 		f.UriPath = &wafv2.UriPath{}
 	}
 
 	return f
 }
 
-func flattenWafv2RedactedFields(fields []*wafv2.FieldToMatch) []map[string]interface{} {
-	redactedFields := make([]map[string]interface{}, 0, len(fields))
+func flattenWafv2RedactedFields(fields []*wafv2.FieldToMatch) []interface{} {
+	redactedFields := make([]interface{}, 0, len(fields))
 	for _, field := range fields {
 		redactedFields = append(redactedFields, flattenWafv2RedactedField(field))
 	}
@@ -247,4 +278,34 @@ func flattenWafv2RedactedField(f *wafv2.FieldToMatch) map[string]interface{} {
 	}
 
 	return m
+}
+
+// redactedFieldsHash takes a map[string]interface{} as input and generates a
+// unique hashcode, taking into account keys defined in the resource's schema
+// are present even if not explicitly configured
+func redactedFieldsHash(v interface{}) int {
+	var buf bytes.Buffer
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return 0
+	}
+	if v, ok := m["method"].([]interface{}); ok && len(v) > 0 {
+		buf.WriteString("method-")
+	}
+	if v, ok := m["query_string"].([]interface{}); ok && len(v) > 0 {
+		buf.WriteString("query_string-")
+	}
+	if v, ok := m["uri_path"].([]interface{}); ok && len(v) > 0 {
+		buf.WriteString("uri_path-")
+	}
+	if v, ok := m["single_header"].([]interface{}); ok && len(v) > 0 {
+		sh, ok := v[0].(map[string]interface{})
+		if ok {
+			if name, ok := sh["name"].(string); ok {
+				buf.WriteString(fmt.Sprintf("%s-", name))
+			}
+		}
+	}
+
+	return hashcode.String(buf.String())
 }

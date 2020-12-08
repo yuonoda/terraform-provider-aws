@@ -51,6 +51,22 @@ rules:
         - pattern: if $VALUE, $OK := d.GetOk($KEY); $OK && len($VALUE.(string)) > 0 { $BODY }
     severity: WARNING
 
+  - id: helper-schema-ResourceData-Set-extraneous-value-pointer-conversion
+    languages: [go]
+    message: AWS Go SDK pointer conversion function for `d.Set()` value is extraneous
+    paths:
+      include:
+        - aws/
+    patterns:
+      - pattern-either:
+          - pattern: d.Set($ATTRIBUTE, aws.BoolValue($APIOBJECT))
+          - pattern: d.Set($ATTRIBUTE, aws.Float64Value($APIOBJECT))
+          - pattern: d.Set($ATTRIBUTE, aws.IntValue($APIOBJECT))
+          - pattern: d.Set($ATTRIBUTE, aws.Int64Value($APIOBJECT))
+          - pattern: d.Set($ATTRIBUTE, int(aws.Int64Value($APIOBJECT)))
+          - pattern: d.Set($ATTRIBUTE, aws.StringValue($APIOBJECT))
+    severity: WARNING
+
   - id: helper-schema-resource-Retry-without-TimeoutError-check
     languages: [go]
     message: Check resource.Retry() errors with tfresource.TimedOut()

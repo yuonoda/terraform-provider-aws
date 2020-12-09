@@ -440,7 +440,7 @@ func resourceAwsElasticacheClusterRead(d *schema.ResourceData, meta interface{})
 			d.Set("configuration_endpoint", aws.String(fmt.Sprintf("%s:%d", *c.ConfigurationEndpoint.Address, *c.ConfigurationEndpoint.Port)))
 			d.Set("cluster_address", aws.String((*c.ConfigurationEndpoint.Address)))
 		} else if len(c.CacheNodes) > 0 {
-			d.Set("port", int(aws.Int64Value(c.CacheNodes[0].Endpoint.Port)))
+			d.Set("port", c.CacheNodes[0].Endpoint.Port)
 		}
 
 		if c.ReplicationGroupId != nil {

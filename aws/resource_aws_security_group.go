@@ -381,7 +381,7 @@ func resourceAwsSecurityGroupRead(d *schema.ResourceData, meta interface{}) erro
 	d.Set("arn", sgArn.String())
 	d.Set("description", sg.Description)
 	d.Set("name", sg.GroupName)
-	d.Set("name_prefix", aws.StringValue(naming.NamePrefixFromName(aws.StringValue(sg.GroupName))))
+	d.Set("name_prefix", naming.NamePrefixFromName(aws.StringValue(sg.GroupName)))
 	d.Set("owner_id", sg.OwnerId)
 	d.Set("vpc_id", sg.VpcId)
 

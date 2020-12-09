@@ -67,7 +67,7 @@ func resourceAwsSesConfigurationSetRead(d *schema.ResourceData, meta interface{}
 		return err
 	}
 
-	d.Set("name", aws.StringValue(response.ConfigurationSet.Name))
+	d.Set("name", response.ConfigurationSet.Name)
 
 	return nil
 }

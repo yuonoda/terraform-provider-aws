@@ -278,20 +278,20 @@ func resourceAwsEbsVolumeRead(d *schema.ResourceData, meta interface{}) error {
 		Service:   "ec2",
 	}
 	d.Set("arn", arn.String())
-	d.Set("availability_zone", aws.StringValue(volume.AvailabilityZone))
-	d.Set("encrypted", aws.BoolValue(volume.Encrypted))
-	d.Set("iops", aws.Int64Value(volume.Iops))
-	d.Set("kms_key_id", aws.StringValue(volume.KmsKeyId))
-	d.Set("size", aws.Int64Value(volume.Size))
-	d.Set("snapshot_id", aws.StringValue(volume.SnapshotId))
-	d.Set("outpost_arn", aws.StringValue(volume.OutpostArn))
+	d.Set("availability_zone", volume.AvailabilityZone)
+	d.Set("encrypted", volume.Encrypted)
+	d.Set("iops", volume.Iops)
+	d.Set("kms_key_id", volume.KmsKeyId)
+	d.Set("size", volume.Size)
+	d.Set("snapshot_id", volume.SnapshotId)
+	d.Set("outpost_arn", volume.OutpostArn)
 	d.Set("multi_attach_enabled", volume.MultiAttachEnabled)
 
 	if err := d.Set("tags", keyvaluetags.Ec2KeyValueTags(volume.Tags).IgnoreAws().IgnoreConfig(ignoreTagsConfig).Map()); err != nil {
 		return fmt.Errorf("error setting tags: %s", err)
 	}
 
-	d.Set("type", aws.StringValue(volume.VolumeType))
+	d.Set("type", volume.VolumeType)
 
 	return nil
 }

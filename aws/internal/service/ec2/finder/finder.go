@@ -1,6 +1,8 @@
 package finder
 
 import (
+	"fmt"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	tfec2 "github.com/terraform-providers/terraform-provider-aws/aws/internal/service/ec2"
@@ -89,6 +91,50 @@ func SecurityGroupByID(conn *ec2.EC2, id string) (*ec2.SecurityGroup, error) {
 	}
 
 	return result.SecurityGroups[0], nil
+}
+
+func TransitGatewayPrefixListReference(conn *ec2.EC2, transitGatewayRouteTableID string, prefixListID string) (*ec2.TransitGatewayPrefixListReference, error) {
+	filters := map[string]string{
+		"prefix-list-id": prefixListID,
+	}
+
+	input := &ec2.GetTransitGatewayPrefixListReferencesInput{
+		TransitGatewayRouteTableId: aws.String(transitGatewayRouteTableID),
+		Filters:                    tfec2.BuildAttributeFilterList(filters),
+	}
+
+	var result *ec2.TransitGatewayPrefixListReference
+
+	err := conn.GetTransitGatewayPrefixListReferencesPages(input, func(page *ec2.GetTransitGatewayPrefixListReferencesOutput, lastPage bool) bool {
+		if page == nil {
+			return !lastPage
+		}
+
+		for _, transitGatewayPrefixListReference := range page.TransitGatewayPrefixListReferences {
+			if transitGatewayPrefixListReference == nil {
+				continue
+			}
+
+			if aws.StringValue(transitGatewayPrefixListReference.PrefixListId) == prefixListID {
+				result = transitGatewayPrefixListReference
+				return false
+			}
+		}
+
+		return !lastPage
+	})
+
+	return result, err
+}
+
+func TransitGatewayPrefixListReferenceByID(conn *ec2.EC2, resourceID string) (*ec2.TransitGatewayPrefixListReference, error) {
+	transitGatewayRouteTableID, prefixListID, err := tfec2.TransitGatewayPrefixListReferenceParseID(resourceID)
+
+	if err != nil {
+		return nil, fmt.Errorf("error parsing EC2 Transit Gateway Prefix List Reference (%s) identifier: %w", resourceID, err)
+	}
+
+	return TransitGatewayPrefixListReference(conn, transitGatewayRouteTableID, prefixListID)
 }
 
 // VpcPeeringConnectionByID returns the VPC peering connection corresponding to the specified identifier.

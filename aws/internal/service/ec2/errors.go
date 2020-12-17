@@ -13,6 +13,10 @@ const (
 )
 
 const (
+	ErrCodeInvalidRouteTableIDNotFound = "InvalidRouteTableID.NotFound"
+)
+
+const (
 	ErrCodeClientVpnEndpointIdNotFound        = "InvalidClientVpnEndpointId.NotFound"
 	ErrCodeClientVpnAuthorizationRuleNotFound = "InvalidClientVpnEndpointAuthorizationRuleNotFound"
 	ErrCodeClientVpnAssociationIdNotFound     = "InvalidClientVpnAssociationId.NotFound"

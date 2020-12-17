@@ -237,6 +237,22 @@ func SecurityGroupStatus(conn *ec2.EC2, id string) resource.StateRefreshFunc {
 	}
 }
 
+func TransitGatewayPrefixListReferenceState(conn *ec2.EC2, transitGatewayRouteTableID string, prefixListID string) resource.StateRefreshFunc {
+	return func() (interface{}, string, error) {
+		transitGatewayPrefixListReference, err := finder.TransitGatewayPrefixListReference(conn, transitGatewayRouteTableID, prefixListID)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		if transitGatewayPrefixListReference == nil {
+			return nil, "", nil
+		}
+
+		return transitGatewayPrefixListReference, aws.StringValue(transitGatewayPrefixListReference.State), nil
+	}
+}
+
 const (
 	vpcPeeringConnectionStatusNotFound = "NotFound"
 	vpcPeeringConnectionStatusUnknown  = "Unknown"
